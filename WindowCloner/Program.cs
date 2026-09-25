@@ -291,7 +291,7 @@ namespace WindowCloner
         }
         public static void SaveLayoutFile()
         {
-            string path = Path.Combine(AppContext.BaseDirectory, "layouts.txt");
+            string path = Path.Combine(AppContext.BaseDirectory, "res", "layouts.txt");
             StringBuilder stringBuilder = new StringBuilder();
             for (int i = 0; i < windowLayouts.Count; i++)
             {
