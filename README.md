@@ -1,7 +1,7 @@
-![Window Cloner Logo](https://file.garden/aYiCQC9IC3ffGDkk/Window%20Cloner%20Small.png)
-
-Window Cloner
-=============
+<h1>
+  <img src="https://file.garden/aYiCQC9IC3ffGDkk/Window%20Cloner.png" alt="Window Cloner Logo" width="32" height="32" style="vertical-align: middle; border-radius: 0 !important;">
+  Window Cloner
+</h1>
 
 A Windows-only program that allows you to create mirrors of any window on your
 desktop via Desktop Window Manager (DWM). It renders a real-time thumbnail of a
