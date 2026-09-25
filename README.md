@@ -260,3 +260,19 @@ Project structure
     SaveLayoutDialog.cs     Dialog for naming and saving a preset
     WindowCapture32.cs      Screenshot capture helper used by the rectangle
                             selector
+<br />
+<p align="center">
+  <sub>
+    <font color="gray">
+      Made by <a href="https://github.com/blayms">Blayms</a> in 2026
+    </font>
+  </sub>
+</p>
+<br />
+<p align="center">
+    <sub>
+    <font color="gray">
+      A lot of AI used during the creation of the program due to the urgent need of it in a short amount of time. Readme was also AI-written. Any suggestions or pull requests are absolutely welcome
+    </font>
+  </sub>
+</p>
