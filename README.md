@@ -1,3 +1,5 @@
+![Window Cloner Logo](https://file.garden/aYiCQC9IC3ffGDkk/Window%20Cloner%20Small.png)
+
 Window Cloner
 =============
 
@@ -7,6 +9,13 @@ target window inside a movable, resizable, always-on-top frame. You can crop,
 scale, and reposition the mirror freely, then save the layout as a reusable
 preset.
 
+<table>
+  <tr>
+    <td><img src="https://file.garden/aYiCQC9IC3ffGDkk/WindowClonerScreenshot0.png" width="200" alt="1"/></td>
+    <td><img src="https://file.garden/aYiCQC9IC3ffGDkk/WindowClonerScreenshot1.png" width="200" alt="2"/></td>
+    <td><img src="https://file.garden/aYiCQC9IC3ffGDkk/WindowClonerScreenshot2.png" width="200" alt="3"/></td>
+  </tr>
+</table>
 
 Note
 ----
