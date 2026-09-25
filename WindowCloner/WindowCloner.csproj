@@ -1,0 +1,89 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+		<SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+		<UseWindowsForms>true</UseWindowsForms>
+
+		<!-- Language / nullability (required by the .NET 8 code) -->
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+
+		<!-- Publish: single file, framework-dependent, R2R -->
+		<PublishSingleFile>true</PublishSingleFile>
+		<SelfContained>false</SelfContained>
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<PublishReadyToRun>true</PublishReadyToRun>
+		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+
+		<!-- === The flags that actually reduce RAM === -->
+
+		<!-- Returns memory to the OS aggressively after GC instead of holding it -->
+		<RetainVMGarbageCollection>false</RetainVMGarbageCollection>
+
+		<!-- Workstation GC: smaller heap, lower baseline RSS -->
+		<ServerGarbageCollection>false</ServerGarbageCollection>
+		<ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+
+		<!-- Don't pre-reserve a big GC budget; grow the heap only as needed -->
+		<GCConserveMemory>9</GCConserveMemory>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+		<!-- Drop runtime machinery we don't need in a tray utility -->
+		<EventSourceSupport>false</EventSourceSupport>
+		<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+		<UseSystemResourceKeys>true</UseSystemResourceKeys>
+
+		<!-- Faster startup, no runtime reflection metadata for unused assemblies -->
+		<TieredPGO>true</TieredPGO>
+		<TieredCompilation>true</TieredCompilation>
+
+		<!-- Friendly metadata -->
+		<AssemblyName>WindowCloner</AssemblyName>
+		<RootNamespace>WindowCloner</RootNamespace>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<Company>TBB</Company>
+		<Authors>Blayms</Authors>
+		<Product>Window Cloner</Product>
+		<PackageIcon>Window Cloner.png</PackageIcon>
+		<Win32Resource></Win32Resource>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Content Include="Window-Cloner.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Include="C:\Users\mfres\Downloads\Window Cloner.png">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	  </None>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Properties\Resources.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>Resources.resx</DependentUpon>
+	  </Compile>
+	  <Compile Update="Resources.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>Resources.resx</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Update="Properties\Resources.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Resources.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
+	</ItemGroup>
+
+</Project>
