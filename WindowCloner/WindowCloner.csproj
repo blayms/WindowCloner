@@ -49,6 +49,7 @@
 		<Product>Window Cloner</Product>
 		<PackageIcon>Window Cloner.png</PackageIcon>
 		<Win32Resource></Win32Resource>
+		<ApplicationIcon>Window-Cloner.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
