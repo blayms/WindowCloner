@@ -1,5 +1,7 @@
-Window Cloner
-=============
+<h1>
+  <img src="https://file.garden/aYiCQC9IC3ffGDkk/Window%20Cloner.png" alt="Window Cloner Logo" width="32" height="32" style="vertical-align: middle; border-radius: 0 !important;">
+  Window Cloner
+</h1>
 
 A Windows-only program that allows you to create mirrors of any window on your
 desktop via Desktop Window Manager (DWM). It renders a real-time thumbnail of a
@@ -7,6 +9,13 @@ target window inside a movable, resizable, always-on-top frame. You can crop,
 scale, and reposition the mirror freely, then save the layout as a reusable
 preset.
 
+<table>
+  <tr>
+    <td><img src="https://file.garden/aYiCQC9IC3ffGDkk/WindowClonerScreenshot0.png" width="200" alt="1"/></td>
+    <td><img src="https://file.garden/aYiCQC9IC3ffGDkk/WindowClonerScreenshot1.png" width="200" alt="2"/></td>
+    <td><img src="https://file.garden/aYiCQC9IC3ffGDkk/WindowClonerScreenshot2.png" width="200" alt="3"/></td>
+  </tr>
+</table>
 
 Note
 ----
@@ -251,3 +260,19 @@ Project structure
     SaveLayoutDialog.cs     Dialog for naming and saving a preset
     WindowCapture32.cs      Screenshot capture helper used by the rectangle
                             selector
+<br />
+<p align="center">
+  <sub>
+    <font color="gray">
+      Made by <a href="https://github.com/blayms">Blayms</a> in 2026
+    </font>
+  </sub>
+</p>
+<br />
+<p align="center">
+    <sub>
+    <font color="gray">
+      A lot of AI used during the creation of the program due to the urgent need of it in a short amount of time. Readme was also AI-written. Any suggestions or pull requests are absolutely welcome
+    </font>
+  </sub>
+</p>
