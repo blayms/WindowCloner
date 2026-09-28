@@ -6,8 +6,8 @@
 A Windows-only program that allows you to create mirrors of any window on your
 desktop via Desktop Window Manager (DWM). It renders a real-time thumbnail of a
 target window inside a movable, resizable, always-on-top frame. You can crop,
-scale, and reposition the mirror freely, then save the layout as a reusable
-preset.
+scale, reposition, and set the opacity of the mirror freely, then save the
+layout as a reusable preset.
 
 <table>
   <tr>
@@ -48,6 +48,9 @@ Features
 - Free positioning and resizing - Move and resize the mirror frame like any
   normal window
 
+- Adjustable opacity - Set the mirror frame's transparency (10-255) so it can
+  blend into your desktop without fully obscuring what's behind it
+
 - Modifier-keys while resizing:
   - Shift        - preserve the original aspect ratio
   - Ctrl         - resize symmetrically from the center
@@ -56,8 +59,9 @@ Features
 
 - System tray integration - App runs on background
 
-- Layout presets - Save the current position, size, capture region, and scale to
-  a named preset. Presets are stored in layouts.txt next to the executable
+- Layout presets - Save the current position, size, capture region, scale, and
+  opacity to a named preset. Presets are stored in layouts.txt next to the
+  executable
 
 - Automatic layout matching - When selecting a region, Window Cloner filters
   available presets by window title and/or process name and warns you if the
@@ -70,7 +74,7 @@ Features
   select everything, Enter to confirm, Esc to cancel
 
 - CLI support - Launch mirrors directly from the command line, optionally
-  applying a saved preset or an inline layout definition
+  applying a saved preset or an inline layout definition (including opacity)
 
 - Target window management - The source window is temporarily moved offscreen
   while mirrored, and restored to its original placement when the mirror is
@@ -117,7 +121,8 @@ of currently open windows. Pick one, then:
    name" to narrow the filter
 4. Click Confirm. The mirror appears, always being on top of your desktop
 
-Resizing the mirror
+
+Operating the mirror
 ~~~~~~~~~~~~~~~~~~~
 
 Grab any edge or corner. While dragging:
@@ -126,9 +131,12 @@ Grab any edge or corner. While dragging:
     Ctrl                 Resize symmetrically from the center
     Alt                  Scale the capture region with the frame
     Alt + Shift          Scale the capture region proportionally to the frame
+    Alt + (+)            Decreases mirror's transparency
+    Alt + (-)            Increases mirror's transparency
     Shift + Ctrl         Move a selected region
     (no modifier)        The capture region is fixed; only the frame changes
                          size
+
 
 Keyboard shortcuts (mirror window)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -136,6 +144,7 @@ Keyboard shortcuts (mirror window)
     Alt+2       Reapply the saved layout
     Alt+`       Open the Save Layout dialog
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 Command-line usage
 ------------------
@@ -155,19 +164,24 @@ Layout
     p"Preset Name"
         Apply a saved preset
 
-    s"locX;locY;rectX;rectY;rectW;rectH[;scaleX;scaleY]"
+    s"locX;locY;rectX;rectY;rectW;rectH[;scaleX;scaleY[;opacity]]"
         Apply an inline layout
         - Use -1;-1 for locX;locY to auto-center the frame on the source
           window's monitor
         - If scaleX and scaleY are omitted, 1.0 is used
+        - opacity is optional and must be an integer between 0 (fully
+          transparent) and 255 (fully opaque). Defaults to 255
+        - To specify opacity without changing the scale, leave the scale fields
+          empty: s"-1;-1;100;50;0;0;1200;780;;;128"
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Extra options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     -createPreset="Name"
-        Instead of launching a mirror, save the current layout under the given
-        name. If the name already exists, you are prompted to replace it
+        Instead of launching a mirror, save the current layout (including its
+        opacity) under the given name. If the name already exists, you are
+        prompted to replace it
 
     -removePreset="Name"
         Remove a saved preset. Requires interactive confirmation
@@ -189,8 +203,17 @@ Examples
     :: Inline layout with 1.5x scale on both axes
     WindowCloner.exe w"Untitled - Notepad" s"-1;-1;100;50;0;0;1200;780;1.5;1.5"
 
-    :: Save the current layout as a preset named "Wide"
-    WindowCloner.exe w"Untitled - Notepad" -createPreset="Wide"
+    :: Inline layout with 1.5x scale and 50% opacity
+    WindowCloner.exe w"Untitled - Notepad" s"-1;-1;100;50;0;0;1200;780;1.5;1.5;128"
+
+    :: Opacity only (scale stays at 1.0)
+    WindowCloner.exe w"Untitled - Notepad" s"-1;-1;100;50;0;0;1200;780;;;128"
+
+    :: Fully transparent mirror (opacity 0)
+    WindowCloner.exe w"Untitled - Notepad" s"-1;-1;100;50;0;0;1200;780;1.0;1.0;0"
+
+    :: Save the current layout (with its opacity) as a preset named "Wide"
+    WindowCloner.exe w"Untitled - Notepad" s"-1;-1;100;50;0;0;1200;780;1.0;1.0;180" -createPreset="Wide"
 
     :: Remove an existing preset
     WindowCloner.exe -removePreset="Wide"
@@ -202,7 +225,7 @@ Layout presets
 Presets are stored as plain text in res/layouts.txt, in the same folder as the
 executable. Each line is a single preset in the form:
 
-    name=windowTitle;processName;locationX;locationY;rectX;rectY;rectW;rectH;width;height;scaleX;scaleY;bestSuitedForWidth;bestSuitedForHeight
+    name=windowTitle;processName;locationX;locationY;rectX;rectY;width;height;rectW;rectH;scaleX;scaleY;bestSuitedForWidth;bestSuitedForHeight;opacity
 
 Fields:
 
@@ -216,6 +239,8 @@ Fields:
     scaleX, scaleY          Scaling factors applied to the capture region
     bestSuitedForWidth,     Source window size the preset was designed for
     bestSuitedForHeight
+    opacity                 Mirror transparency, 0 (invisible) to 255 (opaque)
+
 
 How it works
 ------------
@@ -229,6 +254,10 @@ How it works
 - DwmUpdateThumbnailProperties sets the source rectangle (rcSource) and the
   destination rectangle (rcDestination), which controls what part of the source
   is shown and how it is stretched into the mirror
+
+- Opacity is applied on top of the DWM thumbnail (via the form's Opacity and/or
+  the DWM thumbnail's opacity property), so the mirror blends with the desktop
+  without affecting the source window
 
 - While the user drags edges, the app intercepts WM_SIZING, WM_MOVING,
   WM_ENTERSIZEMOVE, and WM_EXITSIZEMOVE to keep the capture rectangle and scale
