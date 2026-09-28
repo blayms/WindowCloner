@@ -25,6 +25,7 @@ public partial class Form1 : Form
     private Size _baseWindowSize = Size.Empty;
     private Point _baseWindowLocation = Point.Empty;
     private Rectangle _baseCaptureRect = Rectangle.Empty;
+
     private int _lastDeltaW;
     private int _lastDeltaH;
     private int _lastDeltaX;
@@ -51,6 +52,7 @@ public partial class Form1 : Form
     private Size _cachedBorderPathSize = Size.Empty;
 
     internal WindowLayoutObject? _wlo;
+    private int _opacity = 255;
 
     public Rectangle CaptureRect => _captureRect;
     public double CaptureScaleX => _scaleX;
@@ -59,15 +61,23 @@ public partial class Form1 : Form
     public int CaptureHeight => Math.Max(1, _captureRect.Height);
 
     public WindowLayoutObject? WindowLayoutObject => _wlo;
+    public int Opacity => _opacity;
 
-    public Form1(WindowLayoutObject? wlo, Rectangle rect, IntPtr targetHwnd, string windowTitle,
-                 string processName, Rectangle captureRect)
+    public Form1(
+        WindowLayoutObject? wlo,
+        Rectangle rect,
+        IntPtr targetHwnd,
+        string windowTitle,
+        string processName,
+        Rectangle captureRect)
     {
         _wlo = wlo;
         _targetHwnd = targetHwnd;
         _windowTitle = windowTitle;
         _processName = processName;
-        _captureRect = captureRect;
+
+        _captureRect = rect;
+        _baseCaptureRect = rect;
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
@@ -77,9 +87,10 @@ public partial class Form1 : Form
         Text = "Window Cloner";
         ShowInTaskbar = false;
         KeyPreview = true;
-        _captureRect = rect;
-        _baseCaptureRect = rect;
-        Size = new Size(Math.Max(1, captureRect.Width), Math.Max(1, captureRect.Height));
+
+        Size = new Size(
+            Math.Max(1, captureRect.Width),
+            Math.Max(1, captureRect.Height));
     }
 
     protected override CreateParams CreateParams
@@ -88,6 +99,7 @@ public partial class Form1 : Form
         {
             var cp = base.CreateParams;
             cp.ExStyle |= Win32Constants.WS_EX_TOOLWINDOW;
+            cp.ExStyle |= Win32Constants.WS_EX_LAYERED;
             return cp;
         }
     }
@@ -95,24 +107,39 @@ public partial class Form1 : Form
     public void ApplyLayout(WindowLayoutObject wlo)
     {
         Location = new Point(wlo.locationX, wlo.locationY);
-        Size = new Size(wlo.width, wlo.height);
+
+        Size = new Size(
+            Math.Max(1, wlo.width),
+            Math.Max(1, wlo.height));
 
         int cw = wlo.rectW > 0 ? wlo.rectW : wlo.width;
         int ch = wlo.rectH > 0 ? wlo.rectH : wlo.height;
 
-        _captureRect = new Rectangle(new Point(wlo.rectX, wlo.rectY), new Size(cw, ch));
+        _captureRect = new Rectangle(
+            new Point(wlo.rectX, wlo.rectY),
+            new Size(
+                Math.Max(1, cw),
+                Math.Max(1, ch)));
+
         _scaleX = wlo.scaleX > 0 ? wlo.scaleX : 1.0;
         _scaleY = wlo.scaleY > 0 ? wlo.scaleY : 1.0;
+
         _baseScaleX = _scaleX;
         _baseScaleY = _scaleY;
 
+        _opacity = wlo.opacity > 0 ? wlo.opacity : 255;
+
         UpdateMirrorPosition();
+        RefreshOpacity();
+        ApplyRoundedRegion();
+        InvalidateBorderCache();
     }
 
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
         ApplyRoundedRegion();
+        RefreshOpacity();
     }
 
     protected override void OnLoad(EventArgs e)
@@ -128,16 +155,24 @@ public partial class Form1 : Form
 
         if (!IsDwmEnabled())
         {
-            MessageBox.Show("DWM composition is not enabled.", "DWM Not Available",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(
+                "DWM composition is not enabled.",
+                "DWM Not Available",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
             Close();
             return;
         }
 
         if (!IsWindowValid(_targetHwnd))
         {
-            MessageBox.Show($"Target window '{_windowTitle}' is no longer valid.", "Error",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(
+                $"Target window '{_windowTitle}' is no longer valid.",
+                "Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+
             Close();
             return;
         }
@@ -146,9 +181,13 @@ public partial class Form1 : Form
         SaveOriginalPlacement();
 
         _isTargetWindowMinimized = NativeMethods.IsIconic(_targetHwnd);
+
         if (_isTargetWindowMinimized)
         {
-            NativeMethods.ShowWindow(_targetHwnd, Win32Constants.SW_RESTORE);
+            NativeMethods.ShowWindow(
+                _targetHwnd,
+                Win32Constants.SW_RESTORE);
+
             Thread.Sleep(100);
         }
 
@@ -157,7 +196,12 @@ public partial class Form1 : Form
         if (CreateThumbnail())
         {
             HideTargetWindow();
-            _watchdogTimer = new System.Windows.Forms.Timer { Interval = 3000 };
+
+            _watchdogTimer = new System.Windows.Forms.Timer
+            {
+                Interval = 3000
+            };
+
             _watchdogTimer.Tick += WatchdogTimer_Tick;
             _watchdogTimer.Start();
         }
@@ -170,7 +214,9 @@ public partial class Form1 : Form
                 "2. The window belongs to a different desktop\n" +
                 "3. The window is protected (like some browsers)\n\n" +
                 "Try restoring the window manually and try again.",
-                "Thumbnail Creation Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                "Thumbnail Creation Failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
 
         if (_wlo is not null)
@@ -183,14 +229,19 @@ public partial class Form1 : Form
     {
         base.OnShown(e);
 
-        var t = new System.Windows.Forms.Timer { Interval = 150 };
-        t.Tick += (s, _) =>
+        var timer = new System.Windows.Forms.Timer
         {
-            t.Stop();
-            t.Dispose();
+            Interval = 150
+        };
+
+        timer.Tick += (s, _) =>
+        {
+            timer.Stop();
+            timer.Dispose();
             ToggleWindowVisibility();
         };
-        t.Start();
+
+        timer.Start();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -200,6 +251,7 @@ public partial class Form1 : Form
             base.OnFormClosing(e);
             return;
         }
+
         _closing = true;
 
         if (_watchdogTimer is not null)
@@ -230,6 +282,7 @@ public partial class Form1 : Form
             _notifyIcon.Dispose();
             _notifyIcon = null;
         }
+
         _contextMenu?.Dispose();
         _contextMenu = null;
 
@@ -256,19 +309,23 @@ public partial class Form1 : Form
         catch
         {
         }
+
         base.OnFormClosed(e);
     }
 
     private void InitializeSystemTray()
     {
         _contextMenu = new ContextMenuStrip();
+
         var quitItem = new ToolStripMenuItem("Quit");
+
         quitItem.Click += (_, _) =>
         {
             if (_notifyIcon is not null)
             {
                 _notifyIcon.Visible = false;
             }
+
             if (IsHandleCreated && !IsDisposed)
             {
                 BeginInvoke(Close);
@@ -278,6 +335,7 @@ public partial class Form1 : Form
                 Close();
             }
         };
+
         _contextMenu.Items.Add(quitItem);
 
         _trayIconStream = new MemoryStream(Properties.Resources.AppIco);
@@ -290,6 +348,7 @@ public partial class Form1 : Form
             ContextMenuStrip = _contextMenu,
             Visible = true
         };
+
         _notifyIcon.DoubleClick += (_, _) => ToggleVisibility();
     }
 
@@ -304,6 +363,7 @@ public partial class Form1 : Form
             Show();
             Activate();
             Focus();
+
             NativeMethods.BringWindowToTop(Handle);
             NativeMethods.SetForegroundWindow(Handle);
         }
@@ -328,10 +388,15 @@ public partial class Form1 : Form
         {
             return false;
         }
+
         try
         {
-            Span<char> buf = stackalloc char[128];
-            return NativeMethods.GetWindowText(hwnd, buf, buf.Length) > 0;
+            Span<char> buffer = stackalloc char[128];
+
+            return NativeMethods.GetWindowText(
+                hwnd,
+                buffer,
+                buffer.Length) > 0;
         }
         catch
         {
@@ -343,13 +408,18 @@ public partial class Form1 : Form
     {
         try
         {
-            int hr = NativeMethods.DwmRegisterThumbnail(Handle, _targetHwnd, out _thumbnailHandle);
+            int hr = NativeMethods.DwmRegisterThumbnail(
+                Handle,
+                _targetHwnd,
+                out _thumbnailHandle);
+
             if (hr == 0 && _thumbnailHandle != IntPtr.Zero)
             {
                 _hasThumbProps = false;
                 UpdateMirrorPosition();
                 return true;
             }
+
             return false;
         }
         catch
@@ -366,6 +436,7 @@ public partial class Form1 : Form
             _thumbnailHandle = IntPtr.Zero;
             _hasThumbProps = false;
         }
+
         Thread.Sleep(200);
         CreateThumbnail();
     }
@@ -379,17 +450,24 @@ public partial class Form1 : Form
 
         try
         {
-            int cw = ClientRectangle.Width;
-            int ch = ClientRectangle.Height;
+            int cw = Math.Max(1, ClientRectangle.Width);
+            int ch = Math.Max(1, ClientRectangle.Height);
+
+            int captureWidth = Math.Max(1, _captureRect.Width);
+            int captureHeight = Math.Max(1, _captureRect.Height);
 
             var props = new NativeMethods.DWM_THUMBNAIL_PROPERTIES
             {
-                dwFlags = Win32Constants.DWM_TNP_RECTDESTINATION
-                        | Win32Constants.DWM_TNP_RECTSOURCE
-                        | Win32Constants.DWM_TNP_VISIBLE
-                        | Win32Constants.DWM_TNP_SOURCECLIENTAREAONLY,
+                dwFlags =
+                    Win32Constants.DWM_TNP_RECTDESTINATION |
+                    Win32Constants.DWM_TNP_RECTSOURCE |
+                    Win32Constants.DWM_TNP_VISIBLE |
+                    Win32Constants.DWM_TNP_SOURCECLIENTAREAONLY,
+
                 fVisible = 1,
                 fSourceClientAreaOnly = 1,
+                opacity = (byte)_opacity,
+
                 rcDestination = new NativeMethods.RECT
                 {
                     Left = 0,
@@ -397,21 +475,26 @@ public partial class Form1 : Form
                     Right = cw,
                     Bottom = ch
                 },
+
                 rcSource = new NativeMethods.RECT
                 {
                     Left = _captureRect.X,
                     Top = _captureRect.Y,
-                    Right = _captureRect.X + _captureRect.Width,
-                    Bottom = _captureRect.Y + _captureRect.Height
+                    Right = _captureRect.X + captureWidth,
+                    Bottom = _captureRect.Y + captureHeight
                 }
             };
 
-            if (_hasThumbProps && ThumbPropsEqual(in _lastThumbProps, in props))
+            if (_hasThumbProps &&
+                ThumbPropsEqual(in _lastThumbProps, in props))
             {
                 return;
             }
 
-            _ = NativeMethods.DwmUpdateThumbnailProperties(_thumbnailHandle, ref props);
+            _ = NativeMethods.DwmUpdateThumbnailProperties(
+                _thumbnailHandle,
+                ref props);
+
             _lastThumbProps = props;
             _hasThumbProps = true;
         }
@@ -420,12 +503,14 @@ public partial class Form1 : Form
         }
     }
 
-    private static bool ThumbPropsEqual(in NativeMethods.DWM_THUMBNAIL_PROPERTIES a,
-                                        in NativeMethods.DWM_THUMBNAIL_PROPERTIES b)
+    private static bool ThumbPropsEqual(
+        in NativeMethods.DWM_THUMBNAIL_PROPERTIES a,
+        in NativeMethods.DWM_THUMBNAIL_PROPERTIES b)
     {
         return a.dwFlags == b.dwFlags
             && a.fVisible == b.fVisible
             && a.fSourceClientAreaOnly == b.fSourceClientAreaOnly
+            && a.opacity == b.opacity
             && a.rcDestination.Left == b.rcDestination.Left
             && a.rcDestination.Top == b.rcDestination.Top
             && a.rcDestination.Right == b.rcDestination.Right
@@ -444,7 +529,11 @@ public partial class Form1 : Form
             {
                 length = Marshal.SizeOf<NativeMethods.WINDOWPLACEMENT>()
             };
-            _hasOriginalPlacement = NativeMethods.GetWindowPlacement(_targetHwnd, ref _originalPlacement);
+
+            _hasOriginalPlacement =
+                NativeMethods.GetWindowPlacement(
+                    _targetHwnd,
+                    ref _originalPlacement);
         }
         catch
         {
@@ -454,16 +543,25 @@ public partial class Form1 : Form
 
     private void HideTargetWindow()
     {
-        if (_targetHwnd == IntPtr.Zero || _isWindowHidden || !IsWindowValid(_targetHwnd))
+        if (_targetHwnd == IntPtr.Zero ||
+            _isWindowHidden ||
+            !IsWindowValid(_targetHwnd))
         {
             return;
         }
 
         try
         {
-            NativeMethods.SetWindowPos(_targetHwnd, IntPtr.Zero,
-                Win32Constants.OFFSCREEN_X, Win32Constants.OFFSCREEN_Y, 0, 0,
-                Win32Constants.SWP_NOSIZE | Win32Constants.SWP_NOZORDER);
+            NativeMethods.SetWindowPos(
+                _targetHwnd,
+                IntPtr.Zero,
+                Win32Constants.OFFSCREEN_X,
+                Win32Constants.OFFSCREEN_Y,
+                0,
+                0,
+                Win32Constants.SWP_NOSIZE |
+                Win32Constants.SWP_NOZORDER);
+
             _isWindowHidden = true;
         }
         catch (Exception ex)
@@ -474,7 +572,9 @@ public partial class Form1 : Form
 
     private void ShowTargetWindow()
     {
-        if (_targetHwnd == IntPtr.Zero || !_isWindowHidden || !IsWindowValid(_targetHwnd))
+        if (_targetHwnd == IntPtr.Zero ||
+            !_isWindowHidden ||
+            !IsWindowValid(_targetHwnd))
         {
             _isWindowHidden = false;
             return;
@@ -484,27 +584,51 @@ public partial class Form1 : Form
         {
             if (_hasOriginalPlacement)
             {
-                NativeMethods.SetWindowPlacement(_targetHwnd, in _originalPlacement);
+                NativeMethods.SetWindowPlacement(
+                    _targetHwnd,
+                    in _originalPlacement);
             }
             else
             {
-                NativeMethods.SetWindowPos(_targetHwnd, IntPtr.Zero, 100, 100, 0, 0,
-                    Win32Constants.SWP_NOSIZE | Win32Constants.SWP_NOZORDER);
+                NativeMethods.SetWindowPos(
+                    _targetHwnd,
+                    IntPtr.Zero,
+                    100,
+                    100,
+                    0,
+                    0,
+                    Win32Constants.SWP_NOSIZE |
+                    Win32Constants.SWP_NOZORDER);
             }
 
-            NativeMethods.ShowWindow(_targetHwnd, Win32Constants.SW_SHOW);
+            NativeMethods.ShowWindow(
+                _targetHwnd,
+                Win32Constants.SW_SHOW);
+
             NativeMethods.BringWindowToTop(_targetHwnd);
             NativeMethods.SetForegroundWindow(_targetHwnd);
+
             _isWindowHidden = false;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error showing window: {ex.Message}");
+
             try
             {
-                NativeMethods.ShowWindow(_targetHwnd, Win32Constants.SW_RESTORE);
-                NativeMethods.SetWindowPos(_targetHwnd, IntPtr.Zero, 100, 100, 800, 600,
+                NativeMethods.ShowWindow(
+                    _targetHwnd,
+                    Win32Constants.SW_RESTORE);
+
+                NativeMethods.SetWindowPos(
+                    _targetHwnd,
+                    IntPtr.Zero,
+                    100,
+                    100,
+                    800,
+                    600,
                     Win32Constants.SWP_SHOWWINDOW);
+
                 _isWindowHidden = false;
             }
             catch
@@ -517,8 +641,12 @@ public partial class Form1 : Form
     {
         if (!IsWindowValid(_targetHwnd))
         {
-            MessageBox.Show("Target window is no longer valid.", "Error",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(
+                "Target window is no longer valid.",
+                "Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
             return;
         }
 
@@ -535,6 +663,7 @@ public partial class Form1 : Form
 
         Activate();
         Focus();
+
         NativeMethods.BringWindowToTop(Handle);
         NativeMethods.SetForegroundWindow(Handle);
     }
@@ -547,6 +676,7 @@ public partial class Form1 : Form
         }
 
         bool stillExists;
+
         try
         {
             stillExists = NativeMethods.IsWindow(_targetHwnd);
@@ -568,30 +698,57 @@ public partial class Form1 : Form
             {
                 if (_hasOriginalPlacement)
                 {
-                    NativeMethods.SetWindowPlacement(_targetHwnd, in _originalPlacement);
+                    NativeMethods.SetWindowPlacement(
+                        _targetHwnd,
+                        in _originalPlacement);
                 }
-                else if (NativeMethods.GetWindowRect(_targetHwnd, out var cur))
+                else if (NativeMethods.GetWindowRect(
+                    _targetHwnd,
+                    out var currentRect))
                 {
-                    int w = Math.Max(200, cur.Width);
-                    int h = Math.Max(150, cur.Height);
-                    NativeMethods.SetWindowPos(_targetHwnd, IntPtr.Zero, 100, 100, w, h,
-                        Win32Constants.SWP_NOZORDER | Win32Constants.SWP_SHOWWINDOW);
+                    int width = Math.Max(200, currentRect.Width);
+                    int height = Math.Max(150, currentRect.Height);
+
+                    NativeMethods.SetWindowPos(
+                        _targetHwnd,
+                        IntPtr.Zero,
+                        100,
+                        100,
+                        width,
+                        height,
+                        Win32Constants.SWP_NOZORDER |
+                        Win32Constants.SWP_SHOWWINDOW);
                 }
                 else
                 {
-                    NativeMethods.SetWindowPos(_targetHwnd, IntPtr.Zero, 100, 100, 0, 0,
-                        Win32Constants.SWP_NOSIZE | Win32Constants.SWP_NOZORDER | Win32Constants.SWP_SHOWWINDOW);
+                    NativeMethods.SetWindowPos(
+                        _targetHwnd,
+                        IntPtr.Zero,
+                        100,
+                        100,
+                        0,
+                        0,
+                        Win32Constants.SWP_NOSIZE |
+                        Win32Constants.SWP_NOZORDER |
+                        Win32Constants.SWP_SHOWWINDOW);
                 }
+
                 _isWindowHidden = false;
             }
 
             if (_isTargetWindowMinimized)
             {
-                NativeMethods.ShowWindow(_targetHwnd, Win32Constants.SW_RESTORE);
+                NativeMethods.ShowWindow(
+                    _targetHwnd,
+                    Win32Constants.SW_RESTORE);
+
                 _isTargetWindowMinimized = false;
             }
 
-            NativeMethods.ShowWindow(_targetHwnd, Win32Constants.SW_SHOW);
+            NativeMethods.ShowWindow(
+                _targetHwnd,
+                Win32Constants.SW_SHOW);
+
             NativeMethods.BringWindowToTop(_targetHwnd);
             NativeMethods.SetForegroundWindow(_targetHwnd);
 
@@ -599,12 +756,26 @@ public partial class Form1 : Form
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"CleanupTargetWindow failed: {ex.Message}");
+            Debug.WriteLine(
+                $"CleanupTargetWindow failed: {ex.Message}");
+
             try
             {
-                NativeMethods.SetWindowPos(_targetHwnd, IntPtr.Zero, 100, 100, 0, 0,
-                    Win32Constants.SWP_NOSIZE | Win32Constants.SWP_NOZORDER | Win32Constants.SWP_SHOWWINDOW);
-                NativeMethods.ShowWindow(_targetHwnd, Win32Constants.SW_SHOW);
+                NativeMethods.SetWindowPos(
+                    _targetHwnd,
+                    IntPtr.Zero,
+                    100,
+                    100,
+                    0,
+                    0,
+                    Win32Constants.SWP_NOSIZE |
+                    Win32Constants.SWP_NOZORDER |
+                    Win32Constants.SWP_SHOWWINDOW);
+
+                NativeMethods.ShowWindow(
+                    _targetHwnd,
+                    Win32Constants.SW_SHOW);
+
                 _isWindowHidden = false;
             }
             catch
@@ -617,23 +788,31 @@ public partial class Form1 : Form
     {
         try
         {
-            if (!NativeMethods.GetWindowRect(hwnd, out NativeMethods.RECT rect))
+            if (!NativeMethods.GetWindowRect(
+                hwnd,
+                out NativeMethods.RECT rect))
             {
                 return;
             }
 
             IntPtr dc = NativeMethods.GetDC(IntPtr.Zero);
+
             if (dc == IntPtr.Zero)
             {
                 return;
             }
+
             try
             {
-                _ = NativeMethods.DrawFocusRect(dc, ref rect);
+                _ = NativeMethods.DrawFocusRect(
+                    dc,
+                    ref rect);
             }
             finally
             {
-                _ = NativeMethods.ReleaseDC(IntPtr.Zero, dc);
+                _ = NativeMethods.ReleaseDC(
+                    IntPtr.Zero,
+                    dc);
             }
         }
         catch
@@ -641,11 +820,14 @@ public partial class Form1 : Form
         }
     }
 
-    private void WatchdogTimer_Tick(object? sender, EventArgs e)
+    private void WatchdogTimer_Tick(
+        object? sender,
+        EventArgs e)
     {
         if (!IsWindowValid(_targetHwnd))
         {
             _watchdogTimer?.Stop();
+
             try
             {
                 if (IsHandleCreated && !IsDisposed)
@@ -660,10 +842,12 @@ public partial class Form1 : Form
             catch
             {
             }
+
             return;
         }
 
-        if (_thumbnailHandle != IntPtr.Zero && _isWindowHidden)
+        if (_thumbnailHandle != IntPtr.Zero &&
+            _isWindowHidden)
         {
             try
             {
@@ -683,32 +867,46 @@ public partial class Form1 : Form
             return;
         }
 
-        int w = Math.Max(1, Width);
-        int h = Math.Max(1, Height);
+        int width = Math.Max(1, Width);
+        int height = Math.Max(1, Height);
 
-        if (_currentRegion != IntPtr.Zero && _lastRegionSize.Width == w && _lastRegionSize.Height == h)
+        if (_currentRegion != IntPtr.Zero &&
+            _lastRegionSize.Width == width &&
+            _lastRegionSize.Height == height)
         {
             return;
         }
 
-        IntPtr rgn = NativeMethods.CreateRoundRectRgn(0, 0, w, h, 10, 10);
-        if (rgn == IntPtr.Zero)
+        IntPtr region = NativeMethods.CreateRoundRectRgn(
+            0,
+            0,
+            width,
+            height,
+            10,
+            10);
+
+        if (region == IntPtr.Zero)
         {
             return;
         }
 
-        if (NativeMethods.SetWindowRgn(Handle, rgn, true) == 0)
+        if (NativeMethods.SetWindowRgn(
+            Handle,
+            region,
+            true) == 0)
         {
-            NativeMethods.DeleteObject(rgn);
+            NativeMethods.DeleteObject(region);
             return;
         }
-        _currentRegion = rgn;
-        _lastRegionSize = new Size(w, h);
+
+        _currentRegion = region;
+        _lastRegionSize = new Size(width, height);
     }
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
+
         ApplyRoundedRegion();
         UpdateMirrorPosition();
         InvalidateBorderCache();
@@ -724,47 +922,125 @@ public partial class Form1 : Form
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+
         if (e.Alt && e.KeyCode == Keys.D1)
         {
             ToggleWindowVisibility();
-            e.Handled = e.SuppressKeyPress = true;
+            e.Handled = true;
+            e.SuppressKeyPress = true;
         }
         else if (e.Alt && e.KeyCode == Keys.D2)
         {
-            ApplyLayout(_wlo);
-            e.Handled = e.SuppressKeyPress = true;
+            if (_wlo is not null)
+            {
+                ApplyLayout(_wlo);
+            }
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
         }
         else if (e.Alt && e.KeyCode == Keys.Oemtilde)
         {
-            using var dlg = new SaveLayoutDialog(_windowTitle, _processName, this);
-            dlg.ShowDialog(this);
-            e.Handled = e.SuppressKeyPress = true;
+            using var dialog =
+                new SaveLayoutDialog(
+                    _windowTitle,
+                    _processName,
+                    this);
+
+            dialog.ShowDialog(this);
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Alt &&
+                 (e.KeyCode == Keys.Oemplus ||
+                  e.KeyCode == Keys.Add))
+        {
+            AdjustOpacity(10);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Alt &&
+                 (e.KeyCode == Keys.OemMinus ||
+                  e.KeyCode == Keys.Subtract))
+        {
+            AdjustOpacity(-10);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    private void AdjustOpacity(int delta)
+    {
+        _opacity = Math.Max(
+            10,
+            Math.Min(
+                255,
+                _opacity + delta));
+
+        if (_wlo is not null)
+        {
+            _wlo.opacity = _opacity;
+        }
+
+        RefreshOpacity();
+        UpdateMirrorPosition();
+    }
+
+    private void RefreshOpacity()
+    {
+        if (IsHandleCreated)
+        {
+            NativeMethods.SetLayeredWindowAttributes(
+                Handle,
+                0,
+                (byte)_opacity,
+                Win32Constants.LWA_ALPHA);
         }
     }
 
     private static bool IsShiftDown()
     {
-        return (NativeMethods.GetAsyncKeyState(Win32Constants.VK_SHIFT) & 0x8000) != 0;
+        return (NativeMethods.GetAsyncKeyState(
+            Win32Constants.VK_SHIFT) & 0x8000) != 0;
     }
 
     private static bool IsCtrlDown()
     {
-        return (NativeMethods.GetAsyncKeyState(Win32Constants.VK_CONTROL) & 0x8000) != 0;
+        return (NativeMethods.GetAsyncKeyState(
+            Win32Constants.VK_CONTROL) & 0x8000) != 0;
     }
 
     private static bool IsAltDown()
     {
-        return (NativeMethods.GetAsyncKeyState(Win32Constants.VK_MENU) & 0x8000) != 0;
+        return (NativeMethods.GetAsyncKeyState(
+            Win32Constants.VK_MENU) & 0x8000) != 0;
     }
 
     private void BeginSizeMove()
     {
+        if (!NativeMethods.GetWindowRect(
+            Handle,
+            out NativeMethods.RECT rect))
+        {
+            return;
+        }
+
         _inSizeMove = true;
-        _baseWindowSize = Size;
-        _baseWindowLocation = Location;
+
+        _baseWindowLocation = new Point(
+            rect.Left,
+            rect.Top);
+
+        _baseWindowSize = new Size(
+            Math.Max(1, rect.Right - rect.Left),
+            Math.Max(1, rect.Bottom - rect.Top));
+
         _baseCaptureRect = _captureRect;
+
         _baseScaleX = _scaleX;
         _baseScaleY = _scaleY;
+
         _lastDeltaW = 0;
         _lastDeltaH = 0;
         _lastDeltaX = 0;
@@ -774,19 +1050,25 @@ public partial class Form1 : Form
     private void EndSizeMove()
     {
         _inSizeMove = false;
+
         _baseWindowSize = Size.Empty;
         _baseWindowLocation = Point.Empty;
         _baseCaptureRect = Rectangle.Empty;
+
         _lastDeltaW = 0;
         _lastDeltaH = 0;
         _lastDeltaX = 0;
         _lastDeltaY = 0;
+
         UpdateMirrorPosition();
     }
 
-    private void ApplyModifiersToSizing(int edge, ref NativeMethods.RECT r)
+    private void ApplyModifiersToSizing(
+        int edge,
+        ref NativeMethods.RECT rect)
     {
-        if (!_inSizeMove || _baseWindowSize.IsEmpty)
+        if (!_inSizeMove ||
+            _baseWindowSize.IsEmpty)
         {
             return;
         }
@@ -794,52 +1076,110 @@ public partial class Form1 : Form
         bool shift = IsShiftDown();
         bool ctrl = IsCtrlDown();
 
-        int left = r.Left, top = r.Top, right = r.Right, bottom = r.Bottom;
+        int left = rect.Left;
+        int top = rect.Top;
+        int right = rect.Right;
+        int bottom = rect.Bottom;
 
-        if (shift && _baseWindowSize.Width > 0 && _baseWindowSize.Height > 0)
+        if (shift &&
+            _baseWindowSize.Width > 0 &&
+            _baseWindowSize.Height > 0)
         {
-            double aspect = (double)_baseWindowSize.Width / _baseWindowSize.Height;
-            bool horizontal = edge is Win32Constants.WMSZ_LEFT or Win32Constants.WMSZ_RIGHT;
-            bool vertical = edge is Win32Constants.WMSZ_TOP or Win32Constants.WMSZ_BOTTOM;
+            double aspect =
+                (double)_baseWindowSize.Width /
+                _baseWindowSize.Height;
 
-            int newW = right - left;
-            int newH = bottom - top;
+            bool horizontal =
+                edge == Win32Constants.WMSZ_LEFT ||
+                edge == Win32Constants.WMSZ_RIGHT;
+
+            bool vertical =
+                edge == Win32Constants.WMSZ_TOP ||
+                edge == Win32Constants.WMSZ_BOTTOM;
+
+            int newWidth = right - left;
+            int newHeight = bottom - top;
 
             if (horizontal)
             {
-                newH = (int)Math.Round(newW / aspect);
-                bottom = top + newH;
+                newWidth = Math.Max(1, newWidth);
+                newHeight = Math.Max(
+                    1,
+                    (int)Math.Round(newWidth / aspect));
+
+                if (edge == Win32Constants.WMSZ_LEFT)
+                {
+                    left = right - newWidth;
+                }
+                else
+                {
+                    right = left + newWidth;
+                }
+
+                bottom = top + newHeight;
             }
             else if (vertical)
             {
-                newW = (int)Math.Round(newH * aspect);
-                right = left + newW;
+                newHeight = Math.Max(1, newHeight);
+                newWidth = Math.Max(
+                    1,
+                    (int)Math.Round(newHeight * aspect));
+
+                if (edge == Win32Constants.WMSZ_TOP)
+                {
+                    top = bottom - newHeight;
+                }
+                else
+                {
+                    bottom = top + newHeight;
+                }
+
+                right = left + newWidth;
             }
             else
             {
-                double scaleW = (double)newW / _baseWindowSize.Width;
-                double scaleH = (double)newH / _baseWindowSize.Height;
-                double scale = Math.Max(scaleW, scaleH);
-                newW = (int)Math.Round(_baseWindowSize.Width * scale);
-                newH = (int)Math.Round(_baseWindowSize.Height * scale);
+                double scaleW =
+                    (double)Math.Max(1, newWidth) /
+                    _baseWindowSize.Width;
+
+                double scaleH =
+                    (double)Math.Max(1, newHeight) /
+                    _baseWindowSize.Height;
+
+                double scale = Math.Max(
+                    scaleW,
+                    scaleH);
+
+                newWidth = Math.Max(
+                    1,
+                    (int)Math.Round(
+                        _baseWindowSize.Width * scale));
+
+                newHeight = Math.Max(
+                    1,
+                    (int)Math.Round(
+                        _baseWindowSize.Height * scale));
 
                 switch (edge)
                 {
                     case Win32Constants.WMSZ_BOTTOMRIGHT:
-                        right = left + newW;
-                        bottom = top + newH;
+                        right = left + newWidth;
+                        bottom = top + newHeight;
                         break;
+
                     case Win32Constants.WMSZ_BOTTOMLEFT:
-                        left = right - newW;
-                        bottom = top + newH;
+                        left = right - newWidth;
+                        bottom = top + newHeight;
                         break;
+
                     case Win32Constants.WMSZ_TOPRIGHT:
-                        right = left + newW;
-                        top = bottom - newH;
+                        right = left + newWidth;
+                        top = bottom - newHeight;
                         break;
+
                     case Win32Constants.WMSZ_TOPLEFT:
-                        left = right - newW;
-                        top = bottom - newH;
+                        left = right - newWidth;
+                        top = bottom - newHeight;
                         break;
                 }
             }
@@ -847,25 +1187,48 @@ public partial class Form1 : Form
 
         if (ctrl)
         {
-            int cx = (left + right) / 2;
-            int cy = (top + bottom) / 2;
-            int hw = (right - left) / 2;
-            int hh = (bottom - top) / 2;
-            left = cx - hw;
-            right = cx + hw;
-            top = cy - hh;
-            bottom = cy + hh;
+            int centerX = (left + right) / 2;
+            int centerY = (top + bottom) / 2;
+
+            int halfWidth = Math.Max(
+                1,
+                (right - left) / 2);
+
+            int halfHeight = Math.Max(
+                1,
+                (bottom - top) / 2);
+
+            left = centerX - halfWidth;
+            right = centerX + halfWidth;
+
+            top = centerY - halfHeight;
+            bottom = centerY + halfHeight;
         }
 
-        r.Left = left;
-        r.Top = top;
-        r.Right = right;
-        r.Bottom = bottom;
+        if (right <= left)
+        {
+            right = left + 1;
+        }
+
+        if (bottom <= top)
+        {
+            bottom = top + 1;
+        }
+
+        rect.Left = left;
+        rect.Top = top;
+        rect.Right = right;
+        rect.Bottom = bottom;
     }
 
-    private void UpdateCaptureRectFromWindow()
+    private void UpdateCaptureRectFromBounds(
+        int x,
+        int y,
+        int width,
+        int height)
     {
-        if (!_inSizeMove || _baseWindowSize.IsEmpty)
+        if (!_inSizeMove ||
+            _baseWindowSize.IsEmpty)
         {
             return;
         }
@@ -873,24 +1236,16 @@ public partial class Form1 : Form
         bool alt = IsAltDown();
         bool shift = IsShiftDown();
 
-        if (!alt)
-        {
-            _lastDeltaW = 0;
-            _lastDeltaH = 0;
-            _lastDeltaX = 0;
-            _lastDeltaY = 0;
-            _scaleX = _baseScaleX;
-            _scaleY = _baseScaleY;
-            return;
-        }
+        int deltaW = width - _baseWindowSize.Width;
+        int deltaH = height - _baseWindowSize.Height;
 
-        int deltaW = Width - _baseWindowSize.Width;
-        int deltaH = Height - _baseWindowSize.Height;
-        int deltaX = Location.X - _baseWindowLocation.X;
-        int deltaY = Location.Y - _baseWindowLocation.Y;
+        int deltaX = x - _baseWindowLocation.X;
+        int deltaY = y - _baseWindowLocation.Y;
 
-        if (deltaW == _lastDeltaW && deltaH == _lastDeltaH &&
-            deltaX == _lastDeltaX && deltaY == _lastDeltaY)
+        if (deltaW == _lastDeltaW &&
+            deltaH == _lastDeltaH &&
+            deltaX == _lastDeltaX &&
+            deltaY == _lastDeltaY)
         {
             return;
         }
@@ -900,103 +1255,176 @@ public partial class Form1 : Form
         _lastDeltaX = deltaX;
         _lastDeltaY = deltaY;
 
+        if (!alt)
+        {
+            _captureRect = _baseCaptureRect;
+            _scaleX = _baseScaleX;
+            _scaleY = _baseScaleY;
+            return;
+        }
+
         if (shift)
         {
-            double sx = _baseWindowSize.Width > 0
-                ? (double)Width / _baseWindowSize.Width
-                : 1.0;
-            double sy = _baseWindowSize.Height > 0
-                ? (double)Height / _baseWindowSize.Height
-                : 1.0;
+            double sx =
+                _baseWindowSize.Width > 0
+                    ? (double)width / _baseWindowSize.Width
+                    : 1.0;
+
+            double sy =
+                _baseWindowSize.Height > 0
+                    ? (double)height / _baseWindowSize.Height
+                    : 1.0;
 
             _scaleX = _baseScaleX * sx;
             _scaleY = _baseScaleY * sy;
 
-            int newW = Math.Max(1, (int)Math.Round(_baseCaptureRect.Width * sx));
-            int newH = Math.Max(1, (int)Math.Round(_baseCaptureRect.Height * sy));
+            int newWidth = Math.Max(
+                1,
+                (int)Math.Round(
+                    _baseCaptureRect.Width * sx));
 
-            int newX = _baseCaptureRect.X + deltaX;
-            int newY = _baseCaptureRect.Y + deltaY;
+            int newHeight = Math.Max(
+                1,
+                (int)Math.Round(
+                    _baseCaptureRect.Height * sy));
 
-            _captureRect = new Rectangle(newX, newY, newW, newH);
+            int newX =
+                _baseCaptureRect.X + deltaX;
+
+            int newY =
+                _baseCaptureRect.Y + deltaY;
+
+            _captureRect = new Rectangle(
+                newX,
+                newY,
+                newWidth,
+                newHeight);
         }
         else
         {
-            int newW = Math.Max(1, _baseCaptureRect.Width + deltaW);
-            int newH = Math.Max(1, _baseCaptureRect.Height + deltaH);
+            int newWidth = Math.Max(
+                1,
+                _baseCaptureRect.Width + deltaW);
 
-            _scaleX = _baseCaptureRect.Width > 0
-                ? _baseScaleX * ((double)newW / _baseCaptureRect.Width)
-                : _baseScaleX;
-            _scaleY = _baseCaptureRect.Height > 0
-                ? _baseScaleY * ((double)newH / _baseCaptureRect.Height)
-                : _baseScaleY;
+            int newHeight = Math.Max(
+                1,
+                _baseCaptureRect.Height + deltaH);
 
-            int newX = _baseCaptureRect.X + deltaX;
-            int newY = _baseCaptureRect.Y + deltaY;
+            _scaleX =
+                _baseCaptureRect.Width > 0
+                    ? _baseScaleX *
+                      ((double)newWidth /
+                       _baseCaptureRect.Width)
+                    : _baseScaleX;
 
-            _captureRect = new Rectangle(newX, newY, newW, newH);
+            _scaleY =
+                _baseCaptureRect.Height > 0
+                    ? _baseScaleY *
+                      ((double)newHeight /
+                       _baseCaptureRect.Height)
+                    : _baseScaleY;
+
+            int newX =
+                _baseCaptureRect.X + deltaX;
+
+            int newY =
+                _baseCaptureRect.Y + deltaY;
+
+            _captureRect = new Rectangle(
+                newX,
+                newY,
+                newWidth,
+                newHeight);
         }
+
+        if (_wlo is not null)
+        {
+            _wlo.rectX = _captureRect.X;
+            _wlo.rectY = _captureRect.Y;
+            _wlo.rectW = _captureRect.Width;
+            _wlo.rectH = _captureRect.Height;
+            _wlo.scaleX = _scaleX;
+            _wlo.scaleY = _scaleY;
+        }
+
+        UpdateMirrorPosition();
     }
 
     private void RestoreCaptureRectIfNeeded()
     {
-        if (!_inSizeMove || _baseCaptureRect.IsEmpty)
+        if (!_inSizeMove ||
+            _baseCaptureRect.IsEmpty)
         {
             return;
         }
+
         if (!IsAltDown())
         {
             _captureRect = _baseCaptureRect;
             _scaleX = _baseScaleX;
             _scaleY = _baseScaleY;
+
             _lastDeltaW = 0;
             _lastDeltaH = 0;
             _lastDeltaX = 0;
             _lastDeltaY = 0;
+
+            UpdateMirrorPosition();
         }
     }
 
-    private int GetResizeEdge(Point p)
+    private int GetResizeEdge(Point point)
     {
         const int tolerance = 15;
-        bool left = p.X <= tolerance;
-        bool right = p.X >= Width - tolerance;
-        bool top = p.Y <= tolerance;
-        bool bottom = p.Y >= Height - tolerance;
+
+        int width = ClientSize.Width;
+        int height = ClientSize.Height;
+
+        bool left = point.X <= tolerance;
+        bool right = point.X >= width - tolerance;
+        bool top = point.Y <= tolerance;
+        bool bottom = point.Y >= height - tolerance;
 
         if (left && top)
         {
             return 4;
         }
+
         if (right && top)
         {
             return 5;
         }
+
         if (left && bottom)
         {
             return 8;
         }
+
         if (right && bottom)
         {
             return 7;
         }
+
         if (left)
         {
             return 1;
         }
+
         if (right)
         {
             return 2;
         }
+
         if (top)
         {
             return 3;
         }
+
         if (bottom)
         {
             return 6;
         }
+
         return 0;
     }
 
@@ -1006,20 +1434,28 @@ public partial class Form1 : Form
         {
             case 1:
                 return Win32Constants.HTLEFT;
+
             case 2:
                 return Win32Constants.HTRIGHT;
+
             case 3:
                 return Win32Constants.HTTOP;
+
             case 6:
                 return Win32Constants.HTBOTTOM;
+
             case 4:
                 return Win32Constants.HTTOPLEFT;
+
             case 5:
                 return Win32Constants.HTTOPRIGHT;
+
             case 8:
                 return Win32Constants.HTBOTTOMLEFT;
+
             case 7:
                 return Win32Constants.HTBOTTOMRIGHT;
+
             default:
                 return 0;
         }
@@ -1031,12 +1467,29 @@ public partial class Form1 : Form
         {
             case Win32Constants.WM_NCHITTEST:
                 {
-                    int x = unchecked((short)(long)m.LParam);
-                    int y = unchecked((short)((long)m.LParam >> 16));
-                    var p = PointToClient(new Point(x, y));
+                    int screenX = unchecked(
+                        (short)(long)m.LParam);
 
-                    int hit = GetHitTestFromEdge(GetResizeEdge(p));
-                    m.Result = hit != 0 ? hit : Win32Constants.HT_CAPTION;
+                    int screenY = unchecked(
+                        (short)((long)m.LParam >> 16));
+
+                    Point clientPoint =
+                        PointToClient(
+                            new Point(
+                                screenX,
+                                screenY));
+
+                    int edge =
+                        GetResizeEdge(clientPoint);
+
+                    int hit =
+                        GetHitTestFromEdge(edge);
+
+                    m.Result =
+                        hit != 0
+                            ? hit
+                            : Win32Constants.HT_CAPTION;
+
                     return;
                 }
 
@@ -1051,15 +1504,36 @@ public partial class Form1 : Form
             case Win32Constants.WM_SIZING:
                 {
                     int edge = (int)m.WParam;
-                    var r = Marshal.PtrToStructure<NativeMethods.RECT>(m.LParam);
 
-                    ApplyModifiersToSizing(edge, ref r);
-                    Marshal.StructureToPtr(r, m.LParam, false);
+                    var rect =
+                        Marshal.PtrToStructure<
+                            NativeMethods.RECT>(
+                            m.LParam);
 
-                    Size = new Size(r.Right - r.Left, r.Bottom - r.Top);
-                    UpdateCaptureRectFromWindow();
-                    RestoreCaptureRectIfNeeded();
-                    UpdateMirrorPosition();
+                    ApplyModifiersToSizing(
+                        edge,
+                        ref rect);
+
+                    Marshal.StructureToPtr(
+                        rect,
+                        m.LParam,
+                        false);
+
+                    int width =
+                        Math.Max(
+                            1,
+                            rect.Right - rect.Left);
+
+                    int height =
+                        Math.Max(
+                            1,
+                            rect.Bottom - rect.Top);
+
+                    UpdateCaptureRectFromBounds(
+                        rect.Left,
+                        rect.Top,
+                        width,
+                        height);
 
                     m.Result = IntPtr.Zero;
                     return;
@@ -1067,7 +1541,27 @@ public partial class Form1 : Form
 
             case Win32Constants.WM_MOVING:
                 {
-                    UpdateCaptureRectFromWindow();
+                    var rect =
+                        Marshal.PtrToStructure<
+                            NativeMethods.RECT>(
+                            m.LParam);
+
+                    int width =
+                        Math.Max(
+                            1,
+                            rect.Right - rect.Left);
+
+                    int height =
+                        Math.Max(
+                            1,
+                            rect.Bottom - rect.Top);
+
+                    UpdateCaptureRectFromBounds(
+                        rect.Left,
+                        rect.Top,
+                        width,
+                        height);
+
                     break;
                 }
 
@@ -1081,6 +1575,7 @@ public partial class Form1 : Form
                 catch
                 {
                 }
+
                 break;
         }
 
@@ -1091,26 +1586,88 @@ public partial class Form1 : Form
     {
         base.OnPaint(e);
 
-        if (_cachedBorderPath is null || _cachedBorderPathSize.Width != Width || _cachedBorderPathSize.Height != Height)
+        if (_cachedBorderPath is null ||
+            _cachedBorderPathSize.Width != Width ||
+            _cachedBorderPathSize.Height != Height)
         {
             _cachedBorderPath?.Dispose();
-            _cachedBorderPath = GetRoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), 10);
-            _cachedBorderPathSize = new Size(Width, Height);
+
+            _cachedBorderPath =
+                GetRoundedRectangle(
+                    new Rectangle(
+                        0,
+                        0,
+                        Math.Max(1, Width - 1),
+                        Math.Max(1, Height - 1)),
+                    10);
+
+            _cachedBorderPathSize =
+                new Size(
+                    Width,
+                    Height);
         }
 
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        e.Graphics.DrawPath(BorderPen, _cachedBorderPath);
+        e.Graphics.SmoothingMode =
+            SmoothingMode.AntiAlias;
+
+        if (_cachedBorderPath is not null)
+        {
+            e.Graphics.DrawPath(
+                BorderPen,
+                _cachedBorderPath);
+        }
     }
 
-    private static GraphicsPath GetRoundedRectangle(Rectangle rect, int radius)
+    private static GraphicsPath GetRoundedRectangle(
+        Rectangle rect,
+        int radius)
     {
         var path = new GraphicsPath();
+
         int d = radius * 2;
-        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-        path.AddArc(rect.X + rect.Width - d, rect.Y, d, d, 270, 90);
-        path.AddArc(rect.X + rect.Width - d, rect.Y + rect.Height - d, d, d, 0, 90);
-        path.AddArc(rect.X, rect.Y + rect.Height - d, d, d, 90, 90);
+
+        int width = Math.Max(
+            d,
+            rect.Width);
+
+        int height = Math.Max(
+            d,
+            rect.Height);
+
+        path.AddArc(
+            rect.X,
+            rect.Y,
+            d,
+            d,
+            180,
+            90);
+
+        path.AddArc(
+            rect.X + width - d,
+            rect.Y,
+            d,
+            d,
+            270,
+            90);
+
+        path.AddArc(
+            rect.X + width - d,
+            rect.Y + height - d,
+            d,
+            d,
+            0,
+            90);
+
+        path.AddArc(
+            rect.X,
+            rect.Y + height - d,
+            d,
+            d,
+            90,
+            90);
+
         path.CloseFigure();
+
         return path;
     }
 }

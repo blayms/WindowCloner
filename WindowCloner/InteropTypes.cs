@@ -42,8 +42,11 @@ internal static class Win32Constants
 {
     public const uint DWM_TNP_RECTDESTINATION = 0x00000001;
     public const uint DWM_TNP_RECTSOURCE = 0x00000002;
+    public const uint DWM_TNP_OPACITY = 0x00000004;
     public const uint DWM_TNP_VISIBLE = 0x00000008;
     public const uint DWM_TNP_SOURCECLIENTAREAONLY = 0x00000010;
+
+    public const uint LWA_ALPHA = 0x00000002;
 
     public const int SW_HIDE = 0;
     public const int SW_SHOW = 5;
@@ -74,7 +77,9 @@ internal static class Win32Constants
     public const int HTBOTTOMRIGHT = 17;
 
     public const int GWL_EXSTYLE = -20;
+
     public const int WS_EX_TOOLWINDOW = 0x00000080;
+    public const int WS_EX_LAYERED = 0x00080000;
 
     public const int WMSZ_LEFT = 1;
     public const int WMSZ_RIGHT = 2;

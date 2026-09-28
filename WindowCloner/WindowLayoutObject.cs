@@ -19,6 +19,7 @@ namespace WindowCloner
         public double scaleY = 1.0;
         public int bestSuitedForWidth;
         public int bestSuitedForHeight;
+        public int opacity = 255;
 
         public Rectangle GetRectangle(Welcome.WindowItem? window)
         {
@@ -98,11 +99,12 @@ namespace WindowCloner
                     scaleX = 1.0,
                     scaleY = 1.0,
                     bestSuitedForWidth = bw,
-                    bestSuitedForHeight = bh
+                    bestSuitedForHeight = bh,
+                    opacity = 255
                 };
             }
 
-            if (p.Length != 14)
+            if (p.Length != 15)
             {
                 return null;
             }
@@ -119,6 +121,7 @@ namespace WindowCloner
             if (!double.TryParse(p[11], NumberStyles.Float, CultureInfo.InvariantCulture, out double sy)) return null;
             if (!int.TryParse(p[12], out int bfw)) return null;
             if (!int.TryParse(p[13], out int bfh)) return null;
+            if (!int.TryParse(p[14], out int op)) return null;
 
             return new WindowLayoutObject
             {
@@ -136,18 +139,19 @@ namespace WindowCloner
                 scaleX = sx,
                 scaleY = sy,
                 bestSuitedForWidth = bfw,
-                bestSuitedForHeight = bfh
+                bestSuitedForHeight = bfh,
+                opacity = op
             };
         }
 
         public override string ToString()
         {
             return $"{name.Trim()}={windowName.Trim()};{processName.Trim()};" +
-                   $"{locationX};{locationY};{rectX};{rectY};{width};{height};" +
-                   $"{rectW};{rectH};" +
-                   $"{scaleX.ToString(CultureInfo.InvariantCulture)};" +
-                   $"{scaleY.ToString(CultureInfo.InvariantCulture)};" +
-                   $"{bestSuitedForWidth};{bestSuitedForHeight}";
+                    $"{locationX};{locationY};{rectX};{rectY};{width};{height};" +
+                    $"{rectW};{rectH};" +
+                    $"{scaleX.ToString(CultureInfo.InvariantCulture)};" +
+                    $"{scaleY.ToString(CultureInfo.InvariantCulture)};" +
+                    $"{bestSuitedForWidth};{bestSuitedForHeight};{opacity}";
         }
     }
 }

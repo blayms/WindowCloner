@@ -90,15 +90,16 @@ namespace WindowCloner
                     NativeMethods.GetWindowRect(windowItem.Handle, out NativeMethods.RECT windowRect);
                     Point screenCenter = GetScreenCenter(windowItem, windowRect.Width, windowRect.Height);
 
-                                        WindowLayoutObject? windowLayoutObject = WindowLayoutObject.FromString(
-                        $"cli{DateTime.Now.ToString("ddMMyyyyHHmm")}=" +
-                        $"{windowItem.Title};{windowItem.Process};" +
-                        $"{screenCenter.X};{screenCenter.Y};" +
-                        $"{windowRect.Left};{windowRect.Top};" +
-                        $"{windowRect.Width};{windowRect.Height};" +
-                        $"{windowRect.Width};{windowRect.Height};" +
-                        $"1.0;1.0;" +
-                        $"{windowRect.Width};{windowRect.Height}");
+                    WindowLayoutObject? windowLayoutObject = WindowLayoutObject.FromString(
+    $"cli{DateTime.Now.ToString("ddMMyyyyHHmm")}=" +
+    $"{windowItem.Title};{windowItem.Process};" +
+    $"{screenCenter.X};{screenCenter.Y};" +
+    $"{windowRect.Left};{windowRect.Top};" +
+    $"{windowRect.Width};{windowRect.Height};" +
+    $"{windowRect.Width};{windowRect.Height};" +
+    $"1.0;1.0;" +
+    $"{windowRect.Width};{windowRect.Height};" +
+    $"255");
 
                     if (args.Length > 1)
                     {
@@ -111,7 +112,8 @@ namespace WindowCloner
                                     "Example:\n" +
                                     "   WindowCloner e\"exename\" p\"My Layout Preset\"\n" +
                                     "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780\"\n" +
-                                    "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;1.5;1.5\"");
+                                    "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;1.5;1.5\"\n" +
+                                    "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;1.5;1.5;128\"");
                                 break;
                             case 'p':
                                 windowLayoutObject = windowLayouts.FirstOrDefault(l => l.name == layout);
@@ -119,33 +121,66 @@ namespace WindowCloner
                             case 's':
                                 string[] splits = layout.Split(';');
 
-                                if (splits.Length != 6 && splits.Length != 8)
+                                if (splits.Length != 6 && splits.Length != 8 && splits.Length != 9)
                                 {
                                     ConsoleWriteError(
-                                        "The amount of parameters in the second argument must be 6 or 8!\n" +
-                                        "Format: locX;locY;rectX;rectY;rectW;rectH[;scaleX;scaleY]\n" +
+                                        "The amount of parameters in the second argument must be 6, 8, or 9!\n" +
+                                        "Format: locX;locY;rectX;rectY;rectW;rectH[;scaleX;scaleY[;opacity]]\n" +
                                         "Examples:\n" +
                                         "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780\"\n" +
-                                        "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;1.5;1.5\"");
+                                        "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;1.5;1.5\"\n" +
+                                        "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;1.5;1.5;128\"\n" +
+                                        "   WindowCloner w\"Window Name\" s\"-1;-1;100;50;0;0;1200;780;;;128\"");
                                     return;
                                 }
 
                                 double scaleX = 1.0;
                                 double scaleY = 1.0;
-                                if (splits.Length == 8)
+                                int opacity = 255;
+
+                                if (splits.Length >= 8)
                                 {
-                                    if (!double.TryParse(splits[6], NumberStyles.Float,
-                                            CultureInfo.InvariantCulture, out scaleX) ||
-                                        !double.TryParse(splits[7], NumberStyles.Float,
-                                            CultureInfo.InvariantCulture, out scaleY))
+                                    string sxRaw = splits[6];
+                                    string syRaw = splits[7];
+
+                                    if (!string.IsNullOrWhiteSpace(sxRaw))
                                     {
-                                        ConsoleWriteError(
-                                            "scaleX and scaleY must be valid decimal numbers " +
-                                            "(use '.' as the decimal separator).");
+                                        if (!double.TryParse(sxRaw, NumberStyles.Float,
+                                                CultureInfo.InvariantCulture, out scaleX))
+                                        {
+                                            ConsoleWriteError(
+                                                "scaleX must be a valid decimal number " +
+                                                "(use '.' as the decimal separator).");
+                                        }
                                     }
+
+                                    if (!string.IsNullOrWhiteSpace(syRaw))
+                                    {
+                                        if (!double.TryParse(syRaw, NumberStyles.Float,
+                                                CultureInfo.InvariantCulture, out scaleY))
+                                        {
+                                            ConsoleWriteError(
+                                                "scaleY must be a valid decimal number " +
+                                                "(use '.' as the decimal separator).");
+                                        }
+                                    }
+
                                     if (scaleX <= 0 || scaleY <= 0)
                                     {
                                         ConsoleWriteError("scaleX and scaleY must be greater than 0.");
+                                    }
+                                }
+
+                                if (splits.Length == 9 && !string.IsNullOrWhiteSpace(splits[8]))
+                                {
+                                    if (!int.TryParse(splits[8], NumberStyles.Integer,
+                                            CultureInfo.InvariantCulture, out opacity))
+                                    {
+                                        ConsoleWriteError("opacity must be a valid integer between 0 and 255.");
+                                    }
+                                    if (opacity < 10 || opacity > 255)
+                                    {
+                                        ConsoleWriteError("opacity must be between 10 and 255.");
                                     }
                                 }
 
@@ -167,7 +202,8 @@ namespace WindowCloner
                                     $"{splits[4]};{splits[5]};" +
                                     $"{scaleX.ToString(CultureInfo.InvariantCulture)};" +
                                     $"{scaleY.ToString(CultureInfo.InvariantCulture)};" +
-                                    $"{windowRect.Width};{windowRect.Height}";
+                                    $"{windowRect.Width};{windowRect.Height};" +
+                                    $"{opacity}";
 
                                 windowLayoutObject = WindowLayoutObject.FromString(wloLine);
                                 break;

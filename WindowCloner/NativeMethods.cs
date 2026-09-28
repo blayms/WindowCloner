@@ -30,7 +30,7 @@ internal static partial class NativeMethods
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct DWM_THUMBNAIL_PROPERTIES
+    public struct DWM_THUMBNAIL_PROPERTIES
     {
         public uint dwFlags;
         public RECT rcDestination;
@@ -39,7 +39,7 @@ internal static partial class NativeMethods
         public int fVisible;
         public int fSourceClientAreaOnly;
     }
-  
+
     [LibraryImport("user32.dll", SetLastError = true)]
     internal static partial IntPtr GetDC(IntPtr hWnd);
 
@@ -79,6 +79,9 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     internal static partial IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

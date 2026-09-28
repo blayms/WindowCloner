@@ -41,21 +41,23 @@
                 windowName = instance.windowTitle,
                 processName = instance.processName,
 
-                                locationX = f.Location.X,
+                locationX = f.Location.X,
                 locationY = f.Location.Y,
                 width = f.Size.Width,
                 height = f.Size.Height,
 
-                                rectX = cap.X,
+                rectX = cap.X,
                 rectY = cap.Y,
                 rectW = Math.Max(1, cap.Width),
                 rectH = Math.Max(1, cap.Height),
 
-                                scaleX = f.CaptureScaleX,
+                scaleX = f.CaptureScaleX,
                 scaleY = f.CaptureScaleY,
 
                 bestSuitedForWidth = bestW,
-                bestSuitedForHeight = bestH
+                bestSuitedForHeight = bestH,
+
+                opacity = f.Opacity
             };
         }
         private void saveBtn_Click(object sender, EventArgs e)
