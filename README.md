@@ -51,6 +51,8 @@ Features
 - Adjustable opacity - Set the mirror frame's transparency (10-255) so it can
   blend into your desktop without fully obscuring what's behind it
 
+- Click-through support - Clicking Alt + 3 will toggle on/off the click-through mode
+
 - Modifier-keys while resizing:
   - Shift        - preserve the original aspect ratio
   - Ctrl         - resize symmetrically from the center
@@ -121,31 +123,25 @@ of currently open windows. Pick one, then:
    name" to narrow the filter
 4. Click Confirm. The mirror appears, always being on top of your desktop
 
-
+~~~~~~~~~~~~~~~~~~~
 Operating the mirror
 ~~~~~~~~~~~~~~~~~~~
 
-Grab any edge or corner. While dragging:
-
-    Shift                Preserve aspect ratio of the frame
-    Ctrl                 Resize symmetrically from the center
-    Alt                  Scale the capture region with the frame
-    Alt + Shift          Scale the capture region proportionally to the frame
-    Alt + (+)            Decreases mirror's transparency
-    Alt + (-)            Increases mirror's transparency
+    Shift + Drag         Preserve aspect ratio of the frame
+    Ctrl + Drag          Resize symmetrically from the center
     Shift + Ctrl         Move a selected region
     (no modifier)        The capture region is fixed; only the frame changes
                          size
+                         
+    Alt + Drag           Scale the capture region with the frame
+    Alt + Shift          Scale the capture region proportionally to the frame
+    Alt + (+)            Decreases mirror's transparency
+    Alt + (-)            Increases mirror's transparency
+    Alt+1                Toggle source window visibility (restore / hide)
+    Alt+2                Reapply the saved layout
+    Alt+`                Open the Save Layout dialog
 
-
-Keyboard shortcuts (mirror window)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Alt+1       Toggle source window visibility (restore / hide)
-    Alt+2       Reapply the saved layout
-    Alt+`       Open the Save Layout dialog
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
+~~~~~~~~~~~~~~~~~~~
 Command-line usage
 ------------------
 
