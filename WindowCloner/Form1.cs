@@ -36,6 +36,9 @@ public partial class Form1 : Form
     private double _baseScaleX = 1.0;
     private double _baseScaleY = 1.0;
 
+    private bool _clickThrough;
+    private bool _hotkeyRegistered;
+
     private NotifyIcon? _notifyIcon;
     private ContextMenuStrip? _contextMenu;
     private Icon? _trayIcon;
@@ -62,6 +65,7 @@ public partial class Form1 : Form
 
     public WindowLayoutObject? WindowLayoutObject => _wlo;
     public int Opacity => _opacity;
+    public bool ClickThrough => _clickThrough;
 
     public Form1(
         WindowLayoutObject? wlo,
@@ -140,6 +144,18 @@ public partial class Form1 : Form
         base.OnHandleCreated(e);
         ApplyRoundedRegion();
         RefreshOpacity();
+
+        _hotkeyRegistered = NativeMethods.RegisterHotKey(
+            Handle,
+            Win32Constants.HOTKEY_ID_TOGGLE_CLICKTHROUGH,
+            Win32Constants.MOD_ALT | Win32Constants.MOD_NOREPEAT,
+            Win32Constants.VK_3);
+
+        if (!_hotkeyRegistered)
+        {
+            Debug.WriteLine("RegisterHotKey(Alt+3) failed: " +
+                Marshal.GetLastWin32Error());
+        }
     }
 
     protected override void OnLoad(EventArgs e)
@@ -296,6 +312,14 @@ public partial class Form1 : Form
 
         _cachedBorderPath?.Dispose();
         _cachedBorderPath = null;
+
+        if (_hotkeyRegistered)
+        {
+            NativeMethods.UnregisterHotKey(
+                Handle,
+                Win32Constants.HOTKEY_ID_TOGGLE_CLICKTHROUGH);
+            _hotkeyRegistered = false;
+        }
 
         base.OnFormClosing(e);
     }
@@ -1577,9 +1601,66 @@ public partial class Form1 : Form
                 }
 
                 break;
+            case Win32Constants.WM_HOTKEY:
+                {
+                    int id = m.WParam.ToInt32();
+                    if (id == Win32Constants.HOTKEY_ID_TOGGLE_CLICKTHROUGH)
+                    {
+                        ToggleClickThrough();
+                        return;
+                    }
+                    break;
+                }
         }
 
         base.WndProc(ref m);
+    }
+
+    private void ToggleClickThrough()
+    {
+        if (!IsHandleCreated)
+        {
+            return;
+        }
+
+        _clickThrough = !_clickThrough;
+
+        IntPtr exStyle = NativeMethods.GetWindowLongPtr(
+            Handle,
+            Win32Constants.GWL_EXSTYLE);
+
+        long style = exStyle.ToInt64();
+
+        if (_clickThrough)
+        {
+            style |= Win32Constants.WS_EX_TRANSPARENT;
+        }
+        else
+        {
+            style &= ~(long)Win32Constants.WS_EX_TRANSPARENT;
+        }
+
+        NativeMethods.SetWindowLongPtr(
+            Handle,
+            Win32Constants.GWL_EXSTYLE,
+            new IntPtr(style));
+
+        NativeMethods.SetWindowPos(
+            Handle,
+            IntPtr.Zero,
+            0, 0, 0, 0,
+            Win32Constants.SWP_NOMOVE |
+            Win32Constants.SWP_NOSIZE |
+            Win32Constants.SWP_NOZORDER |
+            Win32Constants.SWP_NOACTIVATE |
+            Win32Constants.SWP_FRAMECHANGED);
+
+        if (_notifyIcon is not null)
+        {
+            _notifyIcon.Text = _clickThrough
+                ? "Window Cloner (click-through)"
+                : "Window Cloner";
+        }
     }
 
     protected override void OnPaint(PaintEventArgs e)
